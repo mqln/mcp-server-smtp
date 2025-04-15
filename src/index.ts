@@ -4,13 +4,13 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createToolDefinitions } from "./tools.js";
 import { setupRequestHandlers } from "./requestHandler.js";
-import { ensureConfigDirectories } from "./config.js";
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+import { CONFIG_DIR, getSmtpConfigs } from "./config.js";
 
 // Set up logging to a file instead of console
-const logDir = path.join(os.tmpdir(), 'smtp-mcp-server-logs');
+const logDir = path.join(os.homedir(), "smtp-mcp-server-logs");
 try {
   if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir, { recursive: true });
@@ -19,7 +19,7 @@ try {
   // Silently fail if we can't create the log directory
 }
 
-const logFile = path.join(logDir, 'smtp-mcp-server.log');
+const logFile = path.join(logDir, "smtp-mcp-server.log");
 
 export function logToFile(message: string): void {
   try {
@@ -35,7 +35,14 @@ export function logToFile(message: string): void {
 async function runServer() {
   try {
     // Ensure config directories exist
-    await ensureConfigDirectories();
+    try {
+      if (!fs.existsSync(CONFIG_DIR)) {
+        fs.mkdirSync(CONFIG_DIR, { recursive: true });
+      }
+    } catch (error) {
+      logToFile(`Error creating config directory: ${error}`);
+      // Continue even if we can't create the config directory
+    }
 
     // Initialize the server
     const server = new Server(
@@ -57,6 +64,10 @@ async function runServer() {
     // Create tool definitions
     const TOOLS = createToolDefinitions();
 
+    logToFile(`Environment keys: ${Object.keys(process.env).join(", ")}`);
+
+    getSmtpConfigs();
+
     // Setup request handlers
     await setupRequestHandlers(server, TOOLS);
 
@@ -75,4 +86,4 @@ async function runServer() {
 runServer().catch((error) => {
   logToFile(`Server failed to start: ${error}`);
   process.exit(1);
-}); 
+});
